@@ -87,7 +87,7 @@ module.exports = () => {
         tokenExpiration: '30m',
         tokenRenewal: '14d'
       })
-      _.set(WIKI.config, 'company', 'Cargepoly')
+      _.set(WIKI.config, 'company', 'Chargepoly')
       _.set(WIKI.config, 'features', {
         featurePageRatings: false,
         featurePageComments: false,
