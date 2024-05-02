@@ -47,3 +47,4 @@ test-results/
 
 # Chargepoly custom
 .env
+.DS_Store
