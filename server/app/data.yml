@@ -45,7 +45,7 @@ defaults:
     company: ''
     contentLicense: ''
     footerOverride: ''
-    logoUrl: https://static.requarks.io/logo/wikijs-butterfly.svg
+    logoUrl: https://www.chargepoly.com/uploads/files/favicon-t-site1params-1.png
     pageExtensions:
       - md
       - html
