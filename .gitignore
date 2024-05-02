@@ -45,9 +45,5 @@ server/views/setup.pug
 test-results/
 .scannerwork
 
-# Localization Resources
-/server/locales/**/*.yml
-
 # Chargepoly custom
 .env
-

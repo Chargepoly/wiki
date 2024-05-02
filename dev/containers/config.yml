@@ -4,7 +4,7 @@ db:
   type: postgres
   host: db
   port: 5432
-  user: wikijs
-  pass: wikijsrocks
+  user: postgreadmin
+  pass: chargepolySecret
   db: wiki
 logLevel: info

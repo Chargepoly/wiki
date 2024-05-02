@@ -11,9 +11,14 @@ const _ = require('lodash')
 const crypto = Promise.promisifyAll(require('crypto'))
 const pem2jwk = require('pem-jwk').pem2jwk
 const semver = require('semver')
+const bcrypt = require('bcrypt')
+const moment = require('moment')
+const { randomUUID } = require('crypto')
+const ms = require('ms')
+
+const {verifyEnvironmentForSetup} = require('./core/chargepoly')
 
 /* global WIKI */
-
 module.exports = () => {
   WIKI.config.site = {
     path: '',
@@ -63,16 +68,18 @@ module.exports = () => {
   // ----------------------------------------
   // Controllers
   // ----------------------------------------
-
-  app.get('*', async (req, res) => {
-    let packageObj = await fs.readJson(path.join(WIKI.ROOTPATH, 'package.json'))
-    res.render('setup', { packageObj })
-  })
-
   /**
    * Finalize
    */
-  app.post('/finalize', async (req, res) => {
+  app.get('/finalize', async (req, res) => {
+    try {
+      verifyEnvironmentForSetup()
+    } catch (error) {
+      return res.status(500).json({
+        error: error.message
+      })
+    }
+
     try {
       // Set config
       _.set(WIKI.config, 'auth', {
@@ -80,14 +87,14 @@ module.exports = () => {
         tokenExpiration: '30m',
         tokenRenewal: '14d'
       })
-      _.set(WIKI.config, 'company', '')
+      _.set(WIKI.config, 'company', 'Cargepoly')
       _.set(WIKI.config, 'features', {
-        featurePageRatings: true,
-        featurePageComments: true,
-        featurePersonalWikis: true
+        featurePageRatings: false,
+        featurePageComments: false,
+        featurePersonalWikis: false
       })
       _.set(WIKI.config, 'graphEndpoint', 'https://graph.requarks.io')
-      _.set(WIKI.config, 'host', req.body.siteUrl)
+      _.set(WIKI.config, 'host', process.env.HOST)
       _.set(WIKI.config, 'lang', {
         code: 'en',
         autoUpdate: true,
@@ -97,6 +104,9 @@ module.exports = () => {
       _.set(WIKI.config, 'logo', {
         hasLogo: false,
         logoIsSquare: false
+      })
+      _.set(WIKI.config, 'api', {
+        isEnabled: true
       })
       _.set(WIKI.config, 'mail', {
         senderName: '',
@@ -121,7 +131,7 @@ module.exports = () => {
       })
       _.set(WIKI.config, 'sessionSecret', (await crypto.randomBytesAsync(32)).toString('hex'))
       _.set(WIKI.config, 'telemetry', {
-        isEnabled: req.body.telemetry === true,
+        isEnabled: true,
         clientId: uuid()
       })
       _.set(WIKI.config, 'theming', {
@@ -132,7 +142,7 @@ module.exports = () => {
         injectHead: '',
         injectBody: ''
       })
-      _.set(WIKI.config, 'title', 'Wiki.js')
+      _.set(WIKI.config, 'title', 'Chargepoly: documentation')
 
       // Init Telemetry
       WIKI.kernel.initTelemetry()
@@ -209,13 +219,13 @@ module.exports = () => {
           await WIKI.models.groups.query().del()
           await WIKI.models.users.query().del()
           await WIKI.models.knex.raw(`
-            IF EXISTS (SELECT * FROM sys.identity_columns WHERE OBJECT_NAME(OBJECT_ID) = 'groups' AND last_value IS NOT NULL)
-              DBCC CHECKIDENT ([groups], RESEED, 0)
-          `)
+              IF EXISTS (SELECT * FROM sys.identity_columns WHERE OBJECT_NAME(OBJECT_ID) = 'groups' AND last_value IS NOT NULL)
+                DBCC CHECKIDENT ([groups], RESEED, 0)
+            `)
           await WIKI.models.knex.raw(`
-            IF EXISTS (SELECT * FROM sys.identity_columns WHERE OBJECT_NAME(OBJECT_ID) = 'users' AND last_value IS NOT NULL)
-              DBCC CHECKIDENT ([users], RESEED, 0)
-          `)
+              IF EXISTS (SELECT * FROM sys.identity_columns WHERE OBJECT_NAME(OBJECT_ID) = 'users' AND last_value IS NOT NULL)
+                DBCC CHECKIDENT ([users], RESEED, 0)
+            `)
           break
         case 'sqlite':
           await WIKI.models.groups.query().truncate()
@@ -234,7 +244,6 @@ module.exports = () => {
       })
 
       // Create default groups
-
       WIKI.logger.info('Creating default groups...')
       const adminGroup = await WIKI.models.groups.query().insert({
         name: 'Administrators',
@@ -244,15 +253,20 @@ module.exports = () => {
       })
       const guestGroup = await WIKI.models.groups.query().insert({
         name: 'Guests',
-        permissions: JSON.stringify(['read:pages', 'read:assets', 'read:comments']),
-        pageRules: JSON.stringify([
-          { id: 'guest', roles: ['read:pages', 'read:assets', 'read:comments'], match: 'START', deny: false, path: '', locales: [] }
-        ]),
+        permissions: JSON.stringify(['read:assets']),
+        pageRules: JSON.stringify([]),
         isSystem: true
       })
       if (adminGroup.id !== 1 || guestGroup.id !== 2) {
         throw new Error('Incorrect groups auto-increment configuration! Should start at 0 and increment by 1. Contact your database administrator.')
       }
+      // User group is for Chargepoly users
+      const userGroup = await await WIKI.models.groups.query().insert({
+        name: 'Users',
+        permissions: JSON.stringify(['read:pages', 'read:assets']),
+        pageRules: JSON.stringify([]),
+        isSystem: true
+      })
 
       // Load local authentication strategy
       await WIKI.models.authentication.query().insert({
@@ -286,12 +300,12 @@ module.exports = () => {
       // Load storage targets
       await WIKI.models.storage.refreshTargetsFromDisk()
 
-      // Create root administrator
+      // Create root administrator (must be the first user created)
       WIKI.logger.info('Creating root administrator...')
       const adminUser = await WIKI.models.users.query().insert({
-        email: req.body.adminEmail.toLowerCase(),
+        email: process.env.ADMIN_EMAIL,
         provider: 'local',
-        password: req.body.adminPassword,
+        password: await bcrypt.hash(process.env.ADMIN_PASSWORD, 12),
         name: 'Administrator',
         locale: 'en',
         defaultEditor: 'markdown',
@@ -305,9 +319,9 @@ module.exports = () => {
       WIKI.logger.info('Creating guest account...')
       const guestUser = await WIKI.models.users.query().insert({
         provider: 'local',
-        email: 'guest@example.com',
+        email: `${randomUUID()}@${randomUUID()}.fr`,
         name: 'Guest',
-        password: '',
+        password: await bcrypt.hash(randomUUID(), 12),
         locale: 'en',
         defaultEditor: 'markdown',
         tfaIsActive: false,
@@ -320,8 +334,23 @@ module.exports = () => {
         throw new Error('Incorrect users auto-increment configuration! Should start at 0 and increment by 1. Contact your database administrator.')
       }
 
-      // Create site nav
+      // Create a default user for test
+      WIKI.logger.info('Creating user account...')
+      const user = await WIKI.models.users.query().insert({
+        provider: 'local',
+        email: process.env.DEFAULT_USER_EMAIL,
+        name: 'User',
+        password: await bcrypt.hash(process.env.DEFAULT_USER_PASSWORD, 12),
+        locale: 'en',
+        defaultEditor: 'markdown',
+        tfaIsActive: false,
+        isSystem: true,
+        isActive: true,
+        isVerified: true
+      })
+      await user.$relatedQuery('groups').relate(userGroup.id)
 
+      // Create site nav
       WIKI.logger.info('Creating default site navigation')
       await WIKI.models.navigation.query().insert({
         key: 'site',
@@ -344,6 +373,15 @@ module.exports = () => {
         ]
       })
 
+      // Create API key
+      WIKI.logger.info('Creating API key')
+      await WIKI.models.apiKeys.query().insert({
+        name: process.env.API_KEY_NAME,
+        key: process.env.API_KEY,
+        expiration: moment.utc().add(ms('10y'), 'ms').toISOString(),
+        isRevoked: false
+      })
+
       WIKI.logger.info('Setup is complete!')
       // WIKI.telemetry.sendEvent('setup', 'install-completed')
       res.json({
@@ -355,6 +393,9 @@ module.exports = () => {
       if (WIKI.config.telemetry.isEnabled) {
         await WIKI.telemetry.sendInstanceEvent('INSTALL')
       }
+
+      WIKI.config.api.isEnabled = true
+      await WIKI.configSvc.saveToDb(['api'])
 
       WIKI.config.setup = false
 
@@ -372,6 +413,11 @@ module.exports = () => {
       WIKI.telemetry.sendError(err)
       res.json({ ok: false, error: err.message })
     }
+  })
+
+  app.get('*', async (req, res) => {
+    let packageObj = await fs.readJson(path.join(WIKI.ROOTPATH, 'package.json'))
+    res.render('setup', { packageObj })
   })
 
   // ----------------------------------------
