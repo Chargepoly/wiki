@@ -82,7 +82,7 @@ module.exports = {
           const strategy = require(`../modules/authentication/${stg.strategyKey}/authentication.js`)
 
           stg.config.callbackURL = `${WIKI.config.host}/login/${stg.key}/callback`
-          stg.config.key = stg.key;
+          stg.config.key = stg.key
           strategy.init(passport, stg.config)
           strategy.config = stg.config
 
@@ -111,7 +111,44 @@ module.exports = {
    */
   authenticate (req, res, next) {
     WIKI.auth.passport.authenticate('jwt', {session: false}, async (err, user, info) => {
-      if (err) { return next() }
+      if (err) {
+        return next()
+      }
+
+      if (!user && req.headers?.authorization) {
+        const withBearer = req.headers.authorization
+        if (!withBearer.startsWith('Bearer ')) {
+          next(new Error('authorization must start with "Bearer"'))
+        }
+        const key = req.headers.authorization.split(' ')[1]
+
+        if (!key) {
+          next(new Error('authorization is not valid'))
+        }
+
+        const keyFromDb = await WIKI.models.apiKeys.query().findOne({key}).execute()
+
+        if (keyFromDb) {
+          req.user = {
+            id: 1,
+            email: 'api@localhost',
+            name: 'API',
+            pictureUrl: null,
+            timezone: 'America/New_York',
+            localeCode: 'en',
+            permissions: [ 'manage:system' ],
+            groups: [1],
+            getGlobalPermissions () {
+              return [ 'manage:system' ]
+            },
+            getGroups () {
+              return [1]
+            }
+          }
+          return next()
+        }
+      }
+
       let mustRevalidate = false
 
       // Expired but still valid within N days, just renew

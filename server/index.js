@@ -2,6 +2,7 @@
 // Wiki.js
 // Licensed under AGPLv3
 // ===========================================
+require('dotenv').config()
 
 const path = require('path')
 const { nanoid } = require('nanoid')
