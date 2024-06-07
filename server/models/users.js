@@ -107,7 +107,7 @@ module.exports = class User extends Model {
   async generateHash() {
     if (this.password) {
       if (bcryptRegexp.test(this.password)) { return }
-      this.password = await bcrypt.hash(this.password, 12)
+      this.password = await bcrypt.hash(this.password, 10)
     }
   }
 
@@ -518,35 +518,9 @@ module.exports = class User extends Model {
 
   /**
    * Send a password reset request
+   * @description Disabled cause reset password is done in OSLO-ADMIN
    */
-  static async loginForgotPassword ({ email }, context) {
-    const usr = await WIKI.models.users.query().where({
-      email,
-      providerKey: 'local'
-    }).first()
-    if (!usr) {
-      WIKI.logger.debug(`Password reset attempt on nonexistant local account ${email}: [DISCARDED]`)
-      return
-    }
-    const resetToken = await WIKI.models.userKeys.generateToken({
-      userId: usr.id,
-      kind: 'resetPwd'
-    })
-
-    await WIKI.mail.send({
-      template: 'accountResetPwd',
-      to: email,
-      subject: `Password Reset Request`,
-      data: {
-        preheadertext: `A password reset was requested for ${WIKI.config.title}`,
-        title: `A password reset was requested for ${WIKI.config.title}`,
-        content: `Click the button below to reset your password. If you didn't request this password reset, simply discard this email.`,
-        buttonLink: `${WIKI.config.host}/login-reset/${resetToken}`,
-        buttonText: 'Reset Password'
-      },
-      text: `A password reset was requested for wiki ${WIKI.config.title}. Open the following link to proceed: ${WIKI.config.host}/login-reset/${resetToken}`
-    })
-  }
+  static async loginForgotPassword ({ email }, context) {}
 
   /**
    * Create a new user

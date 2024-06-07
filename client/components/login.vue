@@ -83,101 +83,12 @@
               ) {{ $t('auth:actions.login') }}
             .text-center.mt-5
               v-btn.text-none(
-                text
-                rounded
-                color='grey darken-3'
-                @click.stop.prevent='forgotPassword'
-                href='#forgot'
-                ): .caption {{ $t('auth:forgotPasswordLink') }}
-              v-btn.text-none(
                 v-if='selectedStrategyKey === `local` && selectedStrategy.selfRegistration'
                 color='indigo darken-2'
                 text
                 rounded
                 href='/register'
                 ): .caption {{ $t('auth:switchToRegister.link') }}
-        //-------------------------------------------------
-        //- FORGOT PASSWORD FORM
-        //-------------------------------------------------
-        template(v-if='screen === `forgot`')
-          .login-subtitle
-            .text-subtitle-1 {{$t('auth:forgotPasswordTitle')}}
-          .login-info {{ $t('auth:forgotPasswordSubtitle') }}
-          .login-form
-            v-text-field(
-              solo
-              flat
-              prepend-inner-icon='mdi-clipboard-account'
-              background-color='white'
-              color='blue darken-2'
-              hide-details
-              ref='iptForgotPwdEmail'
-              v-model='username'
-              :placeholder='$t(`auth:fields.email`)'
-              type='email'
-              autocomplete='email'
-              light
-              )
-            v-btn.mt-2.text-none(
-              width='100%'
-              large
-              color='blue darken-2'
-              dark
-              @click='forgotPasswordSubmit'
-              :loading='isLoading'
-              ) {{ $t('auth:sendResetPassword') }}
-            .text-center.mt-5
-              v-btn.text-none(
-                text
-                rounded
-                color='grey darken-3'
-                @click.stop.prevent='screen = `login`'
-                href='#forgot'
-                ): .caption {{ $t('auth:forgotPasswordCancel') }}
-        //-------------------------------------------------
-        //- CHANGE PASSWORD FORM
-        //-------------------------------------------------
-        template(v-if='screen === `changePwd`')
-          .login-subtitle
-            .text-subtitle-1 {{ $t('auth:changePwd.subtitle') }}
-          .login-form
-            v-text-field.mt-2(
-              type='password'
-              solo
-              flat
-              prepend-inner-icon='mdi-form-textbox-password'
-              background-color='white'
-              color='blue darken-2'
-              hide-details
-              ref='iptNewPassword'
-              v-model='newPassword'
-              :placeholder='$t(`auth:changePwd.newPasswordPlaceholder`)'
-              autocomplete='new-password'
-              light
-              )
-              password-strength(slot='progress', v-model='newPassword')
-            v-text-field.mt-2(
-              type='password'
-              solo
-              flat
-              prepend-inner-icon='mdi-form-textbox-password'
-              background-color='white'
-              color='blue darken-2'
-              hide-details
-              v-model='newPasswordVerify'
-              :placeholder='$t(`auth:changePwd.newPasswordVerifyPlaceholder`)'
-              autocomplete='new-password'
-              @keyup.enter='changePassword'
-              light
-            )
-            v-btn.mt-2.text-none(
-              width='100%'
-              large
-              color='blue darken-2'
-              dark
-              @click='changePassword'
-              :loading='isLoading'
-              ) {{ $t('auth:changePwd.proceed') }}
 
     //-------------------------------------------------
     //- TFA FORM
@@ -554,66 +465,13 @@ export default {
      * SWITCH TO FORGOT PASSWORD SCREEN
      */
     forgotPassword () {
-      this.screen = 'forgot'
-      this.$nextTick(() => {
-        this.$refs.iptForgotPwdEmail.focus()
-      })
+
     },
     /**
      * FORGOT PASSWORD SUBMIT
      */
     async forgotPasswordSubmit () {
-      this.loaderColor = 'grey darken-4'
-      this.loaderTitle = this.$t('auth:forgotPasswordLoading')
-      this.isLoading = true
-      try {
-        const resp = await this.$apollo.mutate({
-          mutation: gql`
-            mutation (
-              $email: String!
-            ) {
-              authentication {
-                forgotPassword (
-                  email: $email
-                ) {
-                  responseResult {
-                    succeeded
-                    errorCode
-                    slug
-                    message
-                  }
-                }
-              }
-            }
-          `,
-          variables: {
-            email: this.username
-          }
-        })
-        if (_.has(resp, 'data.authentication.forgotPassword.responseResult')) {
-          let respObj = _.get(resp, 'data.authentication.forgotPassword.responseResult', {})
-          if (respObj.succeeded === true) {
-            this.$store.commit('showNotification', {
-              style: 'success',
-              message: this.$t('auth:forgotPasswordSuccess'),
-              icon: 'email'
-            })
-            this.screen = 'login'
-          } else {
-            throw new Error(respObj.message)
-          }
-        } else {
-          throw new Error(this.$t('auth:genericError'))
-        }
-      } catch (err) {
-        console.error(err)
-        this.$store.commit('showNotification', {
-          style: 'red',
-          message: err.message,
-          icon: 'alert'
-        })
-      }
-      this.isLoading = false
+
     },
     handleLoginResponse (respObj) {
       this.continuationToken = respObj.continuationToken

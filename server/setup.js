@@ -11,12 +11,11 @@ const _ = require('lodash')
 const crypto = Promise.promisifyAll(require('crypto'))
 const pem2jwk = require('pem-jwk').pem2jwk
 const semver = require('semver')
-const bcrypt = require('bcrypt')
-const moment = require('moment')
-const { randomUUID } = require('crypto')
-const ms = require('ms')
 
 const {verifyEnvironmentForSetup} = require('./core/chargepoly')
+const createDefaultGroups = require('./chargepoly/utils/create-default-groups')
+const createDefaultAccounts = require('./chargepoly/utils/create-default-accounts')
+const createDefaultApiKey = require('./chargepoly/utils/create-default-api-key')
 
 /* global WIKI */
 module.exports = () => {
@@ -243,30 +242,9 @@ module.exports = () => {
         nativeName: 'English'
       })
 
-      // Create default groups
-      WIKI.logger.info('Creating default groups...')
-      const adminGroup = await WIKI.models.groups.query().insert({
-        name: 'Administrators',
-        permissions: JSON.stringify(['manage:system']),
-        pageRules: JSON.stringify([]),
-        isSystem: true
-      })
-      const guestGroup = await WIKI.models.groups.query().insert({
-        name: 'Guests',
-        permissions: JSON.stringify(['read:assets']),
-        pageRules: JSON.stringify([]),
-        isSystem: true
-      })
-      if (adminGroup.id !== 1 || guestGroup.id !== 2) {
-        throw new Error('Incorrect groups auto-increment configuration! Should start at 0 and increment by 1. Contact your database administrator.')
-      }
-      // User group is for Chargepoly users
-      const userGroup = await await WIKI.models.groups.query().insert({
-        name: 'Users',
-        permissions: JSON.stringify(['read:pages', 'read:assets']),
-        pageRules: JSON.stringify([]),
-        isSystem: true
-      })
+      WIKI.logger.info('Creating groups...')
+      const {adminsGroupId, guestsGroupId, creatorsGroupId, usersGroupId} = await createDefaultGroups()
+      WIKI.logger.info('All groups created...')
 
       // Load local authentication strategy
       await WIKI.models.authentication.query().insert({
@@ -300,55 +278,9 @@ module.exports = () => {
       // Load storage targets
       await WIKI.models.storage.refreshTargetsFromDisk()
 
-      // Create root administrator (must be the first user created)
-      WIKI.logger.info('Creating root administrator...')
-      const adminUser = await WIKI.models.users.query().insert({
-        email: process.env.ADMIN_EMAIL,
-        provider: 'local',
-        password: await bcrypt.hash(process.env.ADMIN_PASSWORD, 12),
-        name: 'Administrator',
-        locale: 'en',
-        defaultEditor: 'markdown',
-        tfaIsActive: false,
-        isActive: true,
-        isVerified: true
-      })
-      await adminUser.$relatedQuery('groups').relate(adminGroup.id)
-
-      // Create Guest account
-      WIKI.logger.info('Creating guest account...')
-      const guestUser = await WIKI.models.users.query().insert({
-        provider: 'local',
-        email: `${randomUUID()}@${randomUUID()}.fr`,
-        name: 'Guest',
-        password: await bcrypt.hash(randomUUID(), 12),
-        locale: 'en',
-        defaultEditor: 'markdown',
-        tfaIsActive: false,
-        isSystem: true,
-        isActive: true,
-        isVerified: true
-      })
-      await guestUser.$relatedQuery('groups').relate(guestGroup.id)
-      if (adminUser.id !== 1 || guestUser.id !== 2) {
-        throw new Error('Incorrect users auto-increment configuration! Should start at 0 and increment by 1. Contact your database administrator.')
-      }
-
-      // Create a default user for test
-      WIKI.logger.info('Creating user account...')
-      const user = await WIKI.models.users.query().insert({
-        provider: 'local',
-        email: process.env.DEFAULT_USER_EMAIL,
-        name: 'User',
-        password: await bcrypt.hash(process.env.DEFAULT_USER_PASSWORD, 12),
-        locale: 'en',
-        defaultEditor: 'markdown',
-        tfaIsActive: false,
-        isSystem: true,
-        isActive: true,
-        isVerified: true
-      })
-      await user.$relatedQuery('groups').relate(userGroup.id)
+      WIKI.logger.info('Creating default accounts...')
+      await createDefaultAccounts(adminsGroupId, guestsGroupId, creatorsGroupId, usersGroupId)
+      WIKI.logger.info('All default accounts created')
 
       // Create site nav
       WIKI.logger.info('Creating default site navigation')
@@ -374,13 +306,9 @@ module.exports = () => {
       })
 
       // Create API key
-      WIKI.logger.info('Creating API key')
-      await WIKI.models.apiKeys.query().insert({
-        name: process.env.API_KEY_NAME,
-        key: process.env.API_KEY,
-        expiration: moment.utc().add(ms('10y'), 'ms').toISOString(),
-        isRevoked: false
-      })
+      WIKI.logger.info('Creating API key...')
+      await createDefaultApiKey()
+      WIKI.logger.info('Default API key created...')
 
       WIKI.logger.info('Setup is complete!')
       // WIKI.telemetry.sendEvent('setup', 'install-completed')
