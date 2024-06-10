@@ -7,7 +7,7 @@
   "dev": false,
   "scripts": {
     "start": "node server",
-    "dev": "NODE_OPTIONS=--openssl-legacy-provider node dev",
+    "dev": "DB_HOST=localhost DB_PORT=5432 DB_USER=postgreadmin DB_PASS=chargepolySecret DB_NAME=wiki  NODE_OPTIONS=--openssl-legacy-provider node dev",
     "build": "NODE_OPTIONS=--openssl-legacy-provider webpack --profile --config dev/webpack/webpack.prod.js",
     "watch": "NODE_OPTIONS=--openssl-legacy-provider webpack --config dev/webpack/webpack.dev.js",
     "test": "eslint --format codeframe --ext .js,.vue . && pug-lint server/views && jest",
