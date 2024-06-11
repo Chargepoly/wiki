@@ -36,8 +36,6 @@ module.exports = async () => {
   const app = express()
   WIKI.app = app
 
-  app.use('/chargepoly', ctrl.chargepoly)
-
   app.use(compression())
 
   // ----------------------------------------
@@ -100,7 +98,7 @@ module.exports = async () => {
   // ----------------------------------------
   // Chargepoly
   // ----------------------------------------
-  // app.use('/chargepoly', ctrl.chargepoly)
+  app.use('/chargepoly', ctrl.chargepoly)
 
   // ----------------------------------------
   // SEO

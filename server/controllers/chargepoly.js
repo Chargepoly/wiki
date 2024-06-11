@@ -1,5 +1,7 @@
 /* global WIKI */
 
+const FLAG = '[API]'
+
 const express = require('express')
 const router = express.Router()
 
@@ -31,6 +33,7 @@ const changeUserAdminPasswordSchema = Joi.object({
  */
 router.post('/users', validateBody(addUserAdminsSchema), requiresApiKey, async (req, res) => {
   try {
+    WIKI.logger.info(`${FLAG} Request to create WIKI user. Email = ${req.body.email}`)
     const user = await WIKI.models.users.query().insert({
       email: req.body.email,
       provider: 'local',
@@ -48,14 +51,18 @@ router.post('/users', validateBody(addUserAdminsSchema), requiresApiKey, async (
     })
 
     if (!usersGroup) {
+      WIKI.logger.error(`${FLAG} Request to create WIKI user. Cannot find group with name Users`)
       return res.status(404).json({error: 'Unknown group Users'})
     }
     await user.$relatedQuery('groups').relate(usersGroup.id)
 
     // eslint-disable-next-line no-undef
+    WIKI.logger.info(`${FLAG} WIKI user created with email: ${req.body.email}, id : ${user.id}`)
     return res.status(201).json(user)
   } catch (error) {
-    return res.status(400).json(error)
+    WIKI.logger.error(`${FLAG} Error during WIKI user creation with email: ${req.body.email}`)
+    WIKI.logger.error(error)
+    return res.status(500).json(error)
   }
 })
 
@@ -64,45 +71,65 @@ router.post('/users', validateBody(addUserAdminsSchema), requiresApiKey, async (
  * /users?email=
  */
 router.delete('/users', validateQuery(deleteUserAdminSchema), requiresApiKey, async(req, res) => {
-  const user = await WIKI.models.users.findOne({
-    email: req.query.email
-  }).select('id')
+  try {
+    WIKI.logger.info(`${FLAG} Request to delete WIKI user. Email = ${req.query.email}`)
+    const user = await WIKI.models.users.query().findOne({
+      email: req.query.email
+    }).select('id')
 
-  if (!user) {
-    return res.status(404).json({error: 'Unknown user'})
+    if (!user) {
+      WIKI.logger.warn(`${FLAG} Cannot delete WIKI user with email = ${req.query.email} cause he does not exist.`)
+      return res.status(404).json({error: 'Unknown user'})
+    }
+
+    const id = user.id
+
+    await WIKI.models.users.deleteUser(id, 1)
+
+    WIKI.auth.revokeUserTokens({ id, kind: 'u' })
+    WIKI.events.outbound.emit('addAuthRevoke', { id, kind: 'u' })
+
+    WIKI.logger.info(`${FLAG} Wiki user deleted with email: ${req.query.email} and tokens revoked.`)
+    return res.status(200).json(user)
+  } catch (error) {
+    WIKI.logger.error(`${FLAG} Error during WIKI user deletion with email : ${req.query.email}`)
+    WIKI.logger.error(error)
+    return res.status(500).json(error)
   }
-
-  const id = user.id
-
-  await WIKI.models.users.deleteUser(id, 1)
-
-  WIKI.auth.revokeUserTokens({ id, kind: 'u' })
-  WIKI.events.outbound.emit('addAuthRevoke', { id, kind: 'u' })
-
-  return res.status(200).json(user)
 })
 
 /**
  * Change user password
  */
 router.patch('/users/change-password', validateBody(changeUserAdminPasswordSchema), requiresApiKey, async(req, res) => {
-  const user = await WIKI.models.users.findOne({
-    email: req.body.email
-  }).select('id')
+  try {
+    console.log(req.body)
 
-  if (!user) {
-    return res.status(404).json({error: 'Unknown user'})
+    WIKI.logger.info(`${FLAG} Request to change WIKI user password. Email = ${req.body.email}`)
+    const user = await WIKI.models.users.query().findOne({
+      email: req.body.email
+    })
+
+    if (!user) {
+      WIKI.logger.warn(`${FLAG} Cannot change password of WIKI user with email = ${req.body.email} cause he does not exist.`)
+      return res.status(404).json({error: 'Unknown user'})
+    }
+
+    user.password = req.body.password
+
+    await WIKI.models.users.query().update(user).where('id', user.id)
+
+    WIKI.logger.info(`${FLAG} Wiki user password changed with email: ${req.body.email}`)
+    return res.status(200).json(user)
+  } catch (error) {
+    WIKI.logger.error(`${FLAG} Error during WIKI user password change.`)
+    WIKI.logger.error(error)
+    return res.status(500).json(error)
   }
-
-  await WIKI.models.users.update({
-    id: user.id,
-    password: req.body.password
-  })
-
-  return res.status(200).json(user)
 })
 
 router.get('/status', (req, res) => {
+  WIKI.logger.info(`${FLAG} Request to get WIKI API status.`)
   return res.status(200).json({
     'status': 'ok'
   })
