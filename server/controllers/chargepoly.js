@@ -34,6 +34,17 @@ const changeUserAdminPasswordSchema = Joi.object({
 router.post('/users', validateBody(addUserAdminsSchema), requiresApiKey, async (req, res) => {
   try {
     WIKI.logger.info(`${FLAG} Request to create WIKI user. Email = ${req.body.email}`)
+
+    // Search if user with email already exists
+    const userWithSameEmail = await WIKI.models.users.query().findOne({
+      email: req.body.email
+    })
+
+    if (userWithSameEmail) {
+      WIKI.logger.warn(`${FLAG} Cannot create WIKI user with email ${req.body.email}. Email already used`)
+      return res.status(409).json({error: 'Email already used'})
+    }
+
     const user = await WIKI.models.users.query().insert({
       email: req.body.email,
       provider: 'local',
@@ -83,6 +94,12 @@ router.delete('/users', validateQuery(deleteUserAdminSchema), requiresApiKey, as
     }
 
     const id = user.id
+
+    // Protect users created by finalize script
+    if (id <= 4) {
+      WIKI.logger.warn(`${FLAG} Cannot delete WIKI user with email = ${req.query.email} cause he is protected.`)
+      return res.status(400).json({error: 'Protected user'})
+    }
 
     await WIKI.models.users.deleteUser(id, 1)
 
