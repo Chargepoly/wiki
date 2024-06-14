@@ -120,8 +120,6 @@ router.delete('/users', validateQuery(deleteUserAdminSchema), requiresApiKey, as
  */
 router.patch('/users/change-password', validateBody(changeUserAdminPasswordSchema), requiresApiKey, async(req, res) => {
   try {
-    console.log(req.body)
-
     WIKI.logger.info(`${FLAG} Request to change WIKI user password. Email = ${req.body.email}`)
     const user = await WIKI.models.users.query().findOne({
       email: req.body.email

@@ -3,6 +3,30 @@
 ## Introduction
 This project allows for the creation of a knowledge documentation that would be accessible to **Oslo admin** users.
 
+
+
+## Chargepoly Customization
+
+#### Module
+
+All the custom code related to Chargepoly is located in the **module**:
+
+    /server/chargepoly
+
+Here, you'll find the guards, middlewares, and other tools for creating default accounts.
+
+#### Controller
+
+A **controller** for Chargepoly has also been created:
+
+    /server/controllers/chargepoly
+
+## API status
+
+To check the status of the Chargepoly API:  
+
+    GET http://localhost:3000/chargepoly/status
+
 ## Setup
 
 Install [Yarn](https://classic.yarnpkg.com/lang/en/docs/install/#mac-stable):
