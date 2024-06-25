@@ -27,7 +27,7 @@ db:
   user: $(DB_USER)
   pass: $(DB_PASS)
   db: $(DB_NAME)
-  ssl: false
+  ssl: $(DB_SSL)
 
   # Optional - PostgreSQL / MySQL / MariaDB only:
   # -> Uncomment lines you need below and set `auto` to false
